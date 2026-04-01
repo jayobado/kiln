@@ -139,7 +139,9 @@ function hashCode(str: string): string {
 
 // ─── Request handler ──────────────────────────────────────────────────────────
 
-export function createTranspileHandler(opts: TranspileOptions) {
+export function createTranspileHandler(
+	opts: TranspileOptions
+): (req: Request) => Promise<Response> {
 	const githubToken = opts.githubToken ?? Deno.env.get('GITHUB_TOKEN') ?? ''
 	const loader = createLoader(githubToken)
 
