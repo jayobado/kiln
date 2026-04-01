@@ -139,6 +139,126 @@ When your import map references private GitHub repos, kiln fetches them server-s
 export GITHUB_TOKEN="ghp_yourtoken"
 ```
 
+## Environment configuration
+
+Browser code cannot read `.env` files directly — environment variables are server-side only. kiln provides a unified pattern that works across every deployment target without changing your application code.
+
+### How it works
+```
+Has Deno runtime?   →  /config endpoint  —  local dev, Deno Deploy, VPS
+Static files only?  →  build-time inject —  Cloudflare Pages, Vercel, Netlify
+```
+
+Your browser code uses a single `getConfig()` function that handles both cases transparently:
+```typescript
+// public/config.ts
+export interface AppConfig {
+  apiUrl: string
+}
+
+let cached: AppConfig | null = null
+
+export async function getConfig(): Promise<AppConfig> {
+  if (cached) return cached
+
+  // __env.ts is injected at build time for static deployments
+  // In runtime mode this import fails and falls back to /config
+  try {
+    const mod = await import('./__env.ts')
+    cached    = { apiUrl: mod.API_URL }
+    return cached
+  } catch {
+    const res = await fetch('/config')
+    if (!res.ok) throw new Error('Failed to load config')
+    cached = await res.json()
+    return cached!
+  }
+}
+```
+
+Usage in your app:
+```typescript
+import { getConfig } from './config.ts'
+
+const { apiUrl } = await getConfig()
+const res        = await fetch(`${apiUrl}/auth/me`, { credentials: 'include' })
+```
+
+### Runtime mode — local dev, Deno Deploy, VPS
+
+`server.ts` writes `./public/__env.ts` at startup from the process environment and exposes a `/config` endpoint. The browser imports `__env.ts` directly — no network request needed.
+```typescript
+// server.ts
+const apiUrl = Deno.env.get('API_URL') ?? 'http://localhost:3001'
+
+// Write __env.ts so the browser can import it
+await Deno.writeTextFile(
+  './public/__env.ts',
+  `export const API_URL = ${JSON.stringify(apiUrl)}\n`
+)
+
+await serve({
+  // ...
+  routes: (router) => {
+    // Fallback for browsers that can't import __env.ts
+    router.get('/config', () => Response.json({ apiUrl }))
+  },
+})
+```
+
+Set variables in your environment:
+```bash
+# Local — .env file
+API_URL=http://localhost:3001
+ENV=development
+
+# Deno Deploy — dashboard environment variables
+# VPS — systemd environment or Docker
+API_URL=https://api.myapp.com
+ENV=production
+```
+
+### Static mode — Cloudflare Pages, Vercel, Netlify
+
+`scripts/build.ts` writes `./public/__env.ts` with the production value before bundling. The value is inlined into the JavaScript bundle — no server, no `/config` fetch needed at runtime.
+```typescript
+// scripts/build.ts
+const apiUrl = Deno.env.get('API_URL')
+if (!apiUrl) {
+  console.error('API_URL is required')
+  Deno.exit(1)
+}
+
+await Deno.writeTextFile(
+  './public/__env.ts',
+  `export const API_URL = ${JSON.stringify(apiUrl)}\n`
+)
+
+await build({ entry: './public/main.tsx', ... }, './public')
+
+// Clean up — value is already bundled into dist/
+await Deno.remove('./public/__env.ts').catch(() => {})
+```
+
+Set `API_URL` as an environment variable in your platform dashboard before deploying.
+
+### `.gitignore`
+```
+public/__env.ts    # generated at runtime or build time — never commit
+dist/
+.env
+```
+
+### Behaviour by environment
+
+| Environment | Strategy | How config is loaded |
+|---|---|---|
+| Local dev | Runtime | `server.ts` writes `__env.ts` from `.env` |
+| Deno Deploy | Runtime | `server.ts` writes `__env.ts` from Deploy env vars |
+| VPS + Deno | Runtime | `server.ts` writes `__env.ts` from system env vars |
+| Cloudflare Pages | Static build | `build.ts` inlines `API_URL` into bundle |
+| Vercel | Static build | `build.ts` inlines `API_URL` into bundle |
+| Netlify | Static build | `build.ts` inlines `API_URL` into bundle |
 ---
 
 ## `build()`
@@ -303,7 +423,7 @@ kiln serves whatever is in `fsRoot` — completely framework-agnostic.
 | Framework | `compilerOptions` needed | Notes |
 |---|---|---|
 | lolo-ui | No | Plain TypeScript, no JSX |
-| vue-ui | No | Plain TypeScript, no JSX |
+| vue-tools | No | Plain TypeScript, no JSX |
 | Vue (h() only) | No | Plain TypeScript, no JSX |
 | React | Yes | `jsx: 'react-jsx'`, `jsxImportSource: 'react'` |
 | Solid | Yes | `jsx: 'react-jsx'`, `jsxImportSource: 'solid-js/h'` |
