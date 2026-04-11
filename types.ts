@@ -24,6 +24,18 @@ export interface Route {
   handler: Handler
 }
 
+// ─── Router ───────────────────────────────────────────────────────────────────
+
+export interface Router {
+  use(middleware: Middleware): this
+  get(path: string, handler: Handler): this
+  post(path: string, handler: Handler): this
+  put(path: string, handler: Handler): this
+  patch(path: string, handler: Handler): this
+  delete(path: string, handler: Handler): this
+  all(path: string, handler: Handler): this
+}
+
 // ─── HMR ─────────────────────────────────────────────────────────────────────
 
 export type HmrEventType = 'reload' | 'css-reload' | 'invalidate'
@@ -34,8 +46,6 @@ export interface HmrMessage {
 }
 
 // ─── Serve options ────────────────────────────────────────────────────────────
-
-import type { Router } from './router.ts'
 
 export interface ServeOptions {
   host: string
