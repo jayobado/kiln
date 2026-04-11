@@ -1,9 +1,9 @@
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export type Handler = (
-  req:    Request,
+  req: Request,
   params: Record<string, string>,
-  info:   Deno.ServeHandlerInfo
+  info: Deno.ServeHandlerInfo
 ) => Response | Promise<Response>
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
@@ -11,7 +11,7 @@ export type Handler = (
 export type Next = () => Promise<Response>
 
 export type Middleware = (
-  req:  Request,
+  req: Request,
   next: Next,
   info: Deno.ServeHandlerInfo
 ) => Response | Promise<Response>
@@ -34,6 +34,8 @@ export interface HmrMessage {
 }
 
 // ─── Serve options ────────────────────────────────────────────────────────────
+
+import type { Router } from './router.ts'
 
 export interface ServeOptions {
   host: string
@@ -59,23 +61,20 @@ export interface ServeOptions {
 // ─── Bundle options ───────────────────────────────────────────────────────────
 
 export interface BundleOptions {
-  entry:            string
+  entry: string
 
-  outDir?:          string
-  importMap?:       string | { imports: Record<string, string> }
-  githubToken?:     string
+  outDir?: string
+  importMap?: string | { imports: Record<string, string> }
+  githubToken?: string
 
   // Compiler options e.g. { jsx: 'react-jsx', jsxImportSource: 'react' }
   compilerOptions?: Record<string, unknown>
 
-  minify?:          boolean
+  minify?: boolean
 }
 
 export interface BundleResult {
   outFile: string
-  bytes:   number
+  bytes: number
   elapsed: string
 }
-
-// deno-lint-ignore no-empty-interface
-export interface Router {}
