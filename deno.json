@@ -1,6 +1,6 @@
 {
   "name": "@jayobado/kiln",
-  "version": "0.1.4",
+  "version": "0.1.5",
 
   "exports": {
     ".": "./mod.ts"
@@ -8,7 +8,8 @@
 
   "imports": {
     "@std/http": "jsr:@std/http@^1.0.0",
-    "@deno/emit": "jsr:@deno/emit@^0.46.0"
+    "@deno/emit": "jsr:@deno/emit@^0.46.0",
+    "@std/path": "jsr:@std/path@^1"
   },
 
   "tasks": {

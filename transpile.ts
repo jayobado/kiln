@@ -1,5 +1,6 @@
 import { transpile } from '@deno/emit'
 import { Log } from './logger.ts'
+import { resolve } from '@std/path'
 
 export interface TranspileOptions {
 	fsRoot: string
@@ -12,11 +13,20 @@ export interface TranspileOptions {
 
 const cache = new Map<string, string>()
 
+// ─── Path normalisation ───────────────────────────────────────────────────────
+
+function toFileUrl(path: string): string {
+	if (path.startsWith('file://')) return path
+	const abs = resolve(path)
+	return `file://${abs}`
+}
+
 // ─── Cache invalidation ───────────────────────────────────────────────────────
 
 export function invalidateCache(path: string): void {
-	cache.delete(path)
-	Log.debug(`[transpile] cache invalidated: ${path}`)
+	const key = toFileUrl(path)
+	cache.delete(key)
+	Log.debug(`[transpile] cache invalidated: ${key}`)
 }
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -66,23 +76,25 @@ async function transpileFile(
 	opts: TranspileOptions,
 	loader: ReturnType<typeof createLoader>
 ): Promise<string | null> {
-	if (cache.has(path)) return cache.get(path)!
+	const specifier = toFileUrl(path)
+
+	if (cache.has(specifier)) return cache.get(specifier)!
 
 	try {
-		const result = await transpile(path, {
+		const result = await transpile(specifier, {
 			importMap: opts.importMap,
 			compilerOptions: opts.compilerOptions,
 			load: loader,
 		})
 
-		const code = result.get(path)
+		const code = result.get(specifier)
 		if (!code) return null
 
-		cache.set(path, code)
+		cache.set(specifier, code)
 		return code
 	} catch (err) {
 		await Log.error(
-			`[transpile] ${path} — ${err instanceof Error ? err.message : String(err)}`
+			`[transpile] ${specifier} — ${err instanceof Error ? err.message : String(err)}`
 		)
 		return null
 	}
