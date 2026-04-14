@@ -106,13 +106,16 @@ export async function serve(opts: ServeOptions): Promise<void> {
 		compilerOptions,
 	})
 
-	router.get('*.ts', (req) => handleTranspile(req))
-	router.get('*.tsx', (req) => handleTranspile(req))
-
 	// ── Static files + SPA fallback ────────────────────────────────────────────
 
 	router.all('*', async (req) => {
 		const url = new URL(req.url)
+
+		// ── Transpile .ts/.tsx on the fly ──────────────────────────────────────
+		if (url.pathname.endsWith('.ts') || url.pathname.endsWith('.tsx')) {
+			return handleTranspile(req)
+		}
+
 		const response = await serveDir(req, {
 			fsRoot,
 			urlRoot: '',
