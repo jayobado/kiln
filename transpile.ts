@@ -63,12 +63,57 @@ function resolveSpecifier(target: string): string | null {
 	return null
 }
 
-function buildRewriteMap(imports: Record<string, string>): Map<string, string> {
+// ─── Version resolution ───────────────────────────────────────────────────────
+
+async function loadLockVersions(importMap?: string | { imports: Record<string, string> }): Promise<Map<string, string>> {
+	const versions = new Map<string, string>()
+	if (!importMap || typeof importMap !== 'string') return versions
+
+	// Lock file sits next to the import map (deno.json)
+	const dir = importMap.replace(/\/[^/]+$/, '') || '.'
+	const lockPath = `${dir}/deno.lock`
+
+	try {
+		const raw = await Deno.readTextFile(lockPath)
+		const lock = JSON.parse(raw)
+		const specifiers = lock.specifiers ?? {}
+		for (const [spec, version] of Object.entries(specifiers)) {
+			// "jsr:@jayobado/lolo-ui@^0.1.5" → "0.1.8"
+			const match = spec.match(/^jsr:(@[^/]+\/[^@]+)@/)
+			if (match) {
+				versions.set(match[1], version as string)
+			}
+		}
+	} catch { /* no lock file */ }
+
+	return versions
+}
+
+async function buildRewriteMap(
+	imports: Record<string, string>,
+	importMap?: string | { imports: Record<string, string> },
+): Promise<Map<string, string>> {
+	const lockVersions = await loadLockVersions(importMap)
 	const rewrites = new Map<string, string>()
+
 	for (const [alias, target] of Object.entries(imports)) {
-		const resolved = resolveSpecifier(target)
-		if (resolved) rewrites.set(alias, resolved)
+		const jsrMatch = target.match(/^jsr:(@[^/]+\/[^@/]+)(?:@[^/]*)?(?:\/(.*))?$/)
+		if (jsrMatch) {
+			const [, pkg, subpath] = jsrMatch
+			const version = lockVersions.get(pkg)
+			if (version) {
+				rewrites.set(alias, `/jsr/${pkg}/${version}/${subpath ?? 'mod.ts'}`)
+			}
+			continue
+		}
+
+		const npmMatch = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)(?:@[^/]*)?(?:\/(.*))?$/)
+		if (npmMatch) {
+			const [, pkg, subpath] = npmMatch
+			rewrites.set(alias, `/npm/${pkg}${subpath ? '/' + subpath : ''}`)
+		}
 	}
+
 	return rewrites
 }
 
@@ -182,7 +227,7 @@ export async function warmTranspileCache(opts: TranspileOptions): Promise<void> 
 	const githubToken = opts.githubToken ?? Deno.env.get('GITHUB_TOKEN') ?? ''
 	const loader = createLoader(githubToken)
 	const imports = await loadImportMap(opts.importMap)
-	const rewrites = buildRewriteMap(imports)
+	const rewrites = await buildRewriteMap(imports, opts.importMap)
 	const start = performance.now()
 	let count = 0
 
@@ -239,7 +284,7 @@ export function createTranspileHandler(
 	return async (req: Request): Promise<Response> => {
 		if (!rewrites) {
 			const imports = await loadImportMap(opts.importMap)
-			rewrites = buildRewriteMap(imports)
+			rewrites = await buildRewriteMap(imports, opts.importMap)
 		}
 
 		const url = new URL(req.url)

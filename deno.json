@@ -1,6 +1,6 @@
 {
   "name": "@jayobado/kiln",
-  "version": "0.1.7",
+  "version": "0.1.71",
 
   "exports": {
     ".": "./mod.ts"
