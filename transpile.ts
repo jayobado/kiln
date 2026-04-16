@@ -44,25 +44,6 @@ async function loadImportMap(
 	}
 }
 
-// ─── Import rewriting ─────────────────────────────────────────────────────────
-
-function resolveSpecifier(target: string): string | null {
-	const jsrMatch = target.match(/^jsr:(@[^/]+\/[^@/]+)(?:@[^/]*)?(?:\/(.*))?$/)
-	if (jsrMatch) {
-		const [, pkg, subpath] = jsrMatch
-		// No version in the URL — jsr.io resolves it via redirect
-		return `/jsr/${pkg}/${subpath ?? 'mod.ts'}`
-	}
-
-	const npmMatch = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)(?:@[^/]*)?(?:\/(.*))?$/)
-	if (npmMatch) {
-		const [, pkg, subpath] = npmMatch
-		return `/npm/${pkg}${subpath ? '/' + subpath : ''}`
-	}
-
-	return null
-}
-
 // ─── Version resolution ───────────────────────────────────────────────────────
 
 async function loadLockVersions(importMap?: string | { imports: Record<string, string> }): Promise<Map<string, string>> {

@@ -26,7 +26,7 @@ Or in `deno.json`:
 ```json
 {
   "imports": {
-    "@kiln": "jsr:@jayobado/kiln@^0.1.0"
+    "@jayobado/kiln": "jsr:@jayobado/kiln@^0.1.8"
   }
 }
 ```
@@ -36,7 +36,7 @@ Or in `deno.json`:
 ## Quick start
 ```typescript
 // server.ts
-import { serve } from '@kiln'
+import { serve } from '@jayobado/kiln'
 
 const isDev = Deno.env.get('ENV') !== 'production'
 
@@ -77,7 +77,7 @@ await serve({
   fsRoot:  './public',
 
   // Path to deno.json or inline object
-  // Required when using import aliases (@lolo-ui, @myapp etc.)
+  // Required when using import aliases
   importMap: './deno.json',
 
   // GitHub token for private repo imports
@@ -113,11 +113,44 @@ await serve({
 
 **Lazy — development**
 
-Transpiles on the first request for each file, caches in memory. Subsequent requests return instantly. Import aliases and private GitHub repos are resolved server-side — the browser never needs auth tokens.
+Transpiles on the first request for each file, caches in memory. Subsequent requests return instantly. Import map aliases are resolved and rewritten server-side — the browser receives plain JavaScript with fully resolved paths.
 
 **Eager — production**
 
-Transpiles every `.ts` and `.tsx` file at startup before accepting requests. All files are in memory by the time the first request arrives.
+Transpiles every `.ts` and `.tsx` file in `fsRoot` at startup before accepting requests. All files are in memory by the time the first request arrives.
+
+### Import resolution
+
+kiln reads your `deno.json` import map and `deno.lock` to resolve bare specifiers in transpiled output. JSR and npm dependencies are fetched, transpiled, and served automatically:
+
+| Specifier | Resolved to | Served from |
+|---|---|---|
+| `jsr:@scope/pkg@^1.0.0` | `/jsr/@scope/pkg/1.0.3/mod.ts` | `https://jsr.io/...` |
+| `npm:zod@^3.0.0` | `/npm/zod@3.0.0` | `https://esm.sh/...` |
+| `./views/home.ts` | `./views/home.ts` | `fsRoot` |
+
+Versions are resolved from `deno.lock` — no runtime version lookups. The browser never sees bare specifiers or JSR/npm URLs directly.
+
+For example, with this import map:
+```json
+{
+  "imports": {
+    "@jayobado/lolo-ui": "jsr:@jayobado/lolo-ui@^0.1.5"
+  }
+}
+```
+
+A source file containing:
+```typescript
+import { signal } from '@jayobado/lolo-ui'
+```
+
+Is served to the browser as:
+```javascript
+import { signal } from '/jsr/@jayobado/lolo-ui/0.1.8/mod.ts'
+```
+
+kiln intercepts the `/jsr/` request, fetches the source from `jsr.io`, transpiles it, and caches the result. The entire dependency tree is resolved this way — no install step, no `node_modules`, no local copies.
 
 ### HMR
 
@@ -263,10 +296,10 @@ dist/
 
 ## `build()`
 
-Bundles your SPA into `./dist` for deployment to any static host.
+Bundles your SPA into `./dist` for deployment to any static host. Unlike `serve()` which transpiles files individually, `build()` uses `@deno/emit`'s `bundle()` which fully resolves and inlines all dependencies into a single JavaScript file.
 ```typescript
 // scripts/build.ts
-import { build } from '@kiln'
+import { build } from '@jayobado/kiln'
 
 await build(
   {
@@ -292,7 +325,7 @@ Output:
 ### Preview before deploying
 ```typescript
 // scripts/preview.ts
-import { serve } from '@kiln'
+import { serve } from '@jayobado/kiln'
 
 await serve({
   host:     'localhost',
@@ -356,12 +389,12 @@ import {
   accessLog,       // method, path, status, duration — writes to Log
   errorHandler,    // catches unhandled errors, returns 500
   cors,            // CORS headers
-} from '@kiln'
+} from '@jayobado/kiln'
 ```
 
 ### CORS
 ```typescript
-import { cors } from '@kiln'
+import { cors } from '@jayobado/kiln'
 
 await serve({
   middleware: [
@@ -378,7 +411,7 @@ await serve({
 
 ### Custom middleware
 ```typescript
-import type { Middleware } from '@kiln'
+import type { Middleware } from '@jayobado/kiln'
 
 const authMiddleware: Middleware = async (req, next) => {
   const token = req.headers.get('Authorization')
@@ -399,7 +432,7 @@ await serve({
 
 `Log` writes to `./logs/{level}_{YYYYMMDD}.log` and stdout/stderr simultaneously. A new file is created per level per day automatically.
 ```typescript
-import { Log } from '@kiln'
+import { Log } from '@jayobado/kiln'
 
 await Log.debug('Cache warmed')
 await Log.info('Server running')
@@ -484,10 +517,11 @@ kiln/
 ├── mod.ts           # barrel export
 ├── types.ts         # Handler, Middleware, ServeOptions, BundleOptions
 ├── router.ts        # Router — URLPattern based
-├── middleware.ts    # requestId, securityHeaders, accessLog, errorHandler, cors
-├── transpile.ts     # createTranspileHandler, warmTranspileCache, invalidateCache
+├── middleware.ts     # requestId, securityHeaders, accessLog, errorHandler, cors
+├── transpile.ts     # createTranspileHandler, warmTranspileCache, invalidateCache, import rewriting
 ├── hmr.ts           # hmrHandler, broadcast, watchFs, hmrClientScript
 ├── bundle.ts        # build(), buildBundle()
+├── factory.ts       # serve() — wires everything together
 ├── logger.ts        # Log — daily rotating file logger
 └── deno.json
 ```
