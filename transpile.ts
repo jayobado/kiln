@@ -47,27 +47,16 @@ async function loadImportMap(
 // ─── Import rewriting ─────────────────────────────────────────────────────────
 
 function resolveSpecifier(target: string): string | null {
-	const jsrMatch = target.match(/^jsr:(@[^/]+\/[^@/]+)@([^/]+)(?:\/(.*))?$/)
+	const jsrMatch = target.match(/^jsr:(@[^/]+\/[^@/]+)(?:@[^/]*)?(?:\/(.*))?$/)
 	if (jsrMatch) {
-		const [, pkg, version, subpath] = jsrMatch
-		return `/jsr/${pkg}/${version}/${subpath ?? 'mod.ts'}`
-	}
-
-	const jsrNoVersion = target.match(/^jsr:(@[^/]+\/[^@/]+)(?:\/(.*))?$/)
-	if (jsrNoVersion) {
-		const [, pkg, subpath] = jsrNoVersion
+		const [, pkg, subpath] = jsrMatch
+		// No version in the URL — jsr.io resolves it via redirect
 		return `/jsr/${pkg}/${subpath ?? 'mod.ts'}`
 	}
 
-	const npmMatch = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)@([^/]+)(?:\/(.*))?$/)
+	const npmMatch = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)(?:@[^/]*)?(?:\/(.*))?$/)
 	if (npmMatch) {
-		const [, pkg, version, subpath] = npmMatch
-		return `/npm/${pkg}@${version}${subpath ? '/' + subpath : ''}`
-	}
-
-	const npmNoVersion = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)(?:\/(.*))?$/)
-	if (npmNoVersion) {
-		const [, pkg, subpath] = npmNoVersion
+		const [, pkg, subpath] = npmMatch
 		return `/npm/${pkg}${subpath ? '/' + subpath : ''}`
 	}
 
@@ -145,6 +134,7 @@ function createLoader(githubToken: string) {
 
 function resolveRequestPath(pathname: string, fsRoot: string): string {
 	if (pathname.startsWith('/jsr/')) {
+		// /jsr/@scope/pkg/path.ts → https://jsr.io/@scope/pkg/path.ts
 		return `https://jsr.io${pathname.slice(4)}`
 	}
 	if (pathname.startsWith('/npm/')) {
@@ -152,7 +142,6 @@ function resolveRequestPath(pathname: string, fsRoot: string): string {
 	}
 	return `${fsRoot}${pathname}`
 }
-
 // ─── Transpile a single file ──────────────────────────────────────────────────
 
 async function transpileFile(
