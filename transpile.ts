@@ -1,6 +1,6 @@
 import { transpile } from '@deno/emit'
-import { Log } from './logger.ts'
 import { resolve } from '@std/path'
+import { Log } from './logger.ts'
 
 export interface TranspileOptions {
 	fsRoot: string
@@ -17,8 +17,7 @@ const cache = new Map<string, string>()
 
 function toFileUrl(path: string): string {
 	if (path.startsWith('file://')) return path
-	const abs = resolve(path)
-	return `file://${abs}`
+	return `file://${resolve(path)}`
 }
 
 // ─── Cache invalidation ───────────────────────────────────────────────────────
@@ -27,6 +26,79 @@ export function invalidateCache(path: string): void {
 	const key = toFileUrl(path)
 	cache.delete(key)
 	Log.debug(`[transpile] cache invalidated: ${key}`)
+}
+
+// ─── Import map loading ───────────────────────────────────────────────────────
+
+async function loadImportMap(
+	importMap?: string | { imports: Record<string, string> }
+): Promise<Record<string, string>> {
+	if (!importMap) return {}
+	if (typeof importMap === 'object') return importMap.imports ?? {}
+	try {
+		const raw = await Deno.readTextFile(importMap)
+		const json = JSON.parse(raw)
+		return json.imports ?? {}
+	} catch {
+		return {}
+	}
+}
+
+// ─── Import rewriting ─────────────────────────────────────────────────────────
+
+function resolveSpecifier(target: string): string | null {
+	const jsrMatch = target.match(/^jsr:(@[^/]+\/[^@/]+)@([^/]+)(?:\/(.*))?$/)
+	if (jsrMatch) {
+		const [, pkg, version, subpath] = jsrMatch
+		return `/jsr/${pkg}/${version}/${subpath ?? 'mod.ts'}`
+	}
+
+	const jsrNoVersion = target.match(/^jsr:(@[^/]+\/[^@/]+)(?:\/(.*))?$/)
+	if (jsrNoVersion) {
+		const [, pkg, subpath] = jsrNoVersion
+		return `/jsr/${pkg}/${subpath ?? 'mod.ts'}`
+	}
+
+	const npmMatch = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)@([^/]+)(?:\/(.*))?$/)
+	if (npmMatch) {
+		const [, pkg, version, subpath] = npmMatch
+		return `/npm/${pkg}@${version}${subpath ? '/' + subpath : ''}`
+	}
+
+	const npmNoVersion = target.match(/^npm:(@?[^@/]+(?:\/[^@/]+)?)(?:\/(.*))?$/)
+	if (npmNoVersion) {
+		const [, pkg, subpath] = npmNoVersion
+		return `/npm/${pkg}${subpath ? '/' + subpath : ''}`
+	}
+
+	return null
+}
+
+function buildRewriteMap(imports: Record<string, string>): Map<string, string> {
+	const rewrites = new Map<string, string>()
+	for (const [alias, target] of Object.entries(imports)) {
+		const resolved = resolveSpecifier(target)
+		if (resolved) rewrites.set(alias, resolved)
+	}
+	return rewrites
+}
+
+function rewriteImports(code: string, rewrites: Map<string, string>): string {
+	// Sort by length descending so "@jayobado/lolo-ui/form" matches before "@jayobado/lolo-ui"
+	const sorted = [...rewrites.entries()].sort((a, b) => b[0].length - a[0].length)
+
+	for (const [alias, servePath] of sorted) {
+		const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+		code = code.replaceAll(
+			new RegExp(`(from\\s*['"])${escaped}(['"])`, 'g'),
+			`$1${servePath}$2`
+		)
+		code = code.replaceAll(
+			new RegExp(`(import\\s*\\(\\s*['"])${escaped}(['"]\\s*\\))`, 'g'),
+			`$1${servePath}$2`
+		)
+	}
+	return code
 }
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -69,14 +141,27 @@ function createLoader(githubToken: string) {
 	}
 }
 
+// ─── Resolve request path to transpile specifier ──────────────────────────────
+
+function resolveRequestPath(pathname: string, fsRoot: string): string {
+	if (pathname.startsWith('/jsr/')) {
+		return `https://jsr.io${pathname.slice(4)}`
+	}
+	if (pathname.startsWith('/npm/')) {
+		return `https://esm.sh/${pathname.slice(5)}`
+	}
+	return `${fsRoot}${pathname}`
+}
+
 // ─── Transpile a single file ──────────────────────────────────────────────────
 
 async function transpileFile(
 	path: string,
 	opts: TranspileOptions,
-	loader: ReturnType<typeof createLoader>
+	loader: ReturnType<typeof createLoader>,
+	rewrites: Map<string, string>,
 ): Promise<string | null> {
-	const specifier = toFileUrl(path)
+	const specifier = path.startsWith('http') ? path : toFileUrl(path)
 
 	if (cache.has(specifier)) return cache.get(specifier)!
 
@@ -87,8 +172,10 @@ async function transpileFile(
 			load: loader,
 		})
 
-		const code = result.get(specifier)
+		let code = result.get(specifier)
 		if (!code) return null
+
+		code = rewriteImports(code, rewrites)
 
 		cache.set(specifier, code)
 		return code
@@ -105,6 +192,8 @@ async function transpileFile(
 export async function warmTranspileCache(opts: TranspileOptions): Promise<void> {
 	const githubToken = opts.githubToken ?? Deno.env.get('GITHUB_TOKEN') ?? ''
 	const loader = createLoader(githubToken)
+	const imports = await loadImportMap(opts.importMap)
+	const rewrites = buildRewriteMap(imports)
 	const start = performance.now()
 	let count = 0
 
@@ -123,7 +212,7 @@ export async function warmTranspileCache(opts: TranspileOptions): Promise<void> 
 					entry.name.endsWith('.tsx')
 				)
 			) {
-				const code = await transpileFile(full, opts, loader)
+				const code = await transpileFile(full, opts, loader, rewrites)
 				if (code) {
 					count++
 					await Log.debug(`Cached: ${full.replace(opts.fsRoot, '')}`)
@@ -156,15 +245,19 @@ export function createTranspileHandler(
 ): (req: Request) => Promise<Response> {
 	const githubToken = opts.githubToken ?? Deno.env.get('GITHUB_TOKEN') ?? ''
 	const loader = createLoader(githubToken)
+	let rewrites: Map<string, string> | null = null
 
 	return async (req: Request): Promise<Response> => {
+		if (!rewrites) {
+			const imports = await loadImportMap(opts.importMap)
+			rewrites = buildRewriteMap(imports)
+		}
+
 		const url = new URL(req.url)
-		const path = url.pathname.startsWith('/pkg/')
-			? `.${url.pathname}`
-			: `${opts.fsRoot}${url.pathname}`
+		const path = resolveRequestPath(url.pathname, opts.fsRoot)
 
 		try {
-			const code = await transpileFile(path, opts, loader)
+			const code = await transpileFile(path, opts, loader, rewrites)
 
 			if (!code) {
 				return new Response('File not found', { status: 404 })

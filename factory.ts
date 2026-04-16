@@ -112,7 +112,12 @@ export async function serve(opts: ServeOptions): Promise<void> {
 		const url = new URL(req.url)
 
 		// ── Transpile .ts/.tsx on the fly ──────────────────────────────────────
-		if (url.pathname.endsWith('.ts') || url.pathname.endsWith('.tsx')) {
+		if (
+			url.pathname.endsWith('.ts') ||
+			url.pathname.endsWith('.tsx') ||
+			url.pathname.startsWith('/jsr/') ||
+			url.pathname.startsWith('/npm/')
+		) {
 			return handleTranspile(req)
 		}
 
