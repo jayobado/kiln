@@ -130,3 +130,32 @@ export function cors(opts: CorsOptions): Middleware {
 		})
 	}
 }
+
+// ─── Compression ──────────────────────────────────────────────────────────────
+
+export function compress(): Middleware {
+	return async (_req, next) => {
+		const res = await next()
+
+		const contentType = res.headers.get('content-type') ?? ''
+		const compressible =
+			contentType.includes('text/') ||
+			contentType.includes('application/javascript') ||
+			contentType.includes('application/json') ||
+			contentType.includes('image/svg+xml')
+
+		if (!compressible || !res.body) return res
+
+		const encoded = res.body.pipeThrough(new CompressionStream('gzip'))
+
+		const headers = new Headers(res.headers)
+		headers.set('Content-Encoding', 'gzip')
+		headers.delete('Content-Length')
+
+		return new Response(encoded, {
+			status: res.status,
+			statusText: res.statusText,
+			headers,
+		})
+	}
+}

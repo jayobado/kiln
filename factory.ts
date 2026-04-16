@@ -5,6 +5,7 @@ import {
 	securityHeaders,
 	accessLog,
 	errorHandler,
+	compress,
 } from './middleware.ts'
 import {
 	createTranspileHandler,
@@ -22,7 +23,7 @@ import type { ServeOptions } from './types.ts'
 // ─── run ──────────────────────────────────────────────────────────────────────
 
 function run(router: Router, host: string, port: number): void {
-	Deno.serve(
+	const server = Deno.serve(
 		{
 			port,
 			hostname: host,
@@ -33,6 +34,16 @@ function run(router: Router, host: string, port: number): void {
 		},
 		(req, info) => router.handle(req, info)
 	)
+
+	async function shutdown(): Promise<void> {
+		Log.info('Shutting down...')
+		await server.shutdown()
+		await Log.flush()
+		Deno.exit(0)
+	}
+
+	Deno.addSignalListener('SIGINT', shutdown)
+	Deno.addSignalListener('SIGTERM', shutdown)
 }
 
 // ─── Inject HMR script ────────────────────────────────────────────────────────
@@ -66,6 +77,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
 	// ── Built-in middleware ────────────────────────────────────────────────────
 
 	router.use(errorHandler())
+	router.use(compress())
 	router.use(requestId())
 	router.use(securityHeaders())
 	router.use(accessLog())

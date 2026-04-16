@@ -270,6 +270,7 @@ export function createTranspileHandler(
 
 		const url = new URL(req.url)
 		const path = resolveRequestPath(url.pathname, opts.fsRoot)
+		const isVersioned = url.pathname.startsWith('/jsr/') || url.pathname.startsWith('/npm/')
 
 		try {
 			const code = await transpileFile(path, opts, loader, rewrites)
@@ -281,7 +282,9 @@ export function createTranspileHandler(
 			return new Response(code, {
 				headers: {
 					'Content-Type': 'application/javascript; charset=utf-8',
-					'Cache-Control': 'no-cache',
+					'Cache-Control': isVersioned
+						? 'public, max-age=31536000, immutable'
+						: 'no-cache',
 					'ETag': `"${hashCode(code)}"`,
 				},
 			})

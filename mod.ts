@@ -7,6 +7,7 @@ export {
 	accessLog,
 	errorHandler,
 	cors,
+	compress,
 } from './middleware.ts'
 export {
 	warmTranspileCache,
