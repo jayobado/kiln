@@ -1,0 +1,25 @@
+{
+  "imports": {
+    "@jayobado/kiln": "../mod.ts",
+    "@jayobado/kiln/auth": "../auth/mod.ts",
+    "@jayobado/kiln/upstream": "../upstream/mod.ts",
+    "@jayobado/kiln/procedure": "../procedure/mod.ts",
+    "@jayobado/kiln/rpc": "../rpc/mod.ts",
+    "@jayobado/kiln/health": "../health/mod.ts",
+    "@jayobado/kiln/client": "../client/mod.ts",
+    "@jayobado/kiln/client/dsl": "../client/dsl/mod.ts",
+    "@jayobado/kiln/client/query": "../client/query/mod.ts",
+    "@jayobado/kiln/client/rpc": "../rpc/client.ts",
+
+    "@std/http": "jsr:@std/http@^1.0.0",
+    "@deno/emit": "jsr:@deno/emit@^0.46.0",
+    "@std/path": "jsr:@std/path@^1",
+    "@std/assert": "jsr:@std/assert@^1",
+    "@standard-schema/spec": "npm:@standard-schema/spec@^1.0.0"
+  },
+
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["ESNext", "DOM", "Deno.NS"]
+  }
+}

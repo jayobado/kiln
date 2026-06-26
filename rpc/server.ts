@@ -1,5 +1,4 @@
-import type { Router } from '../router.ts'
-import type { Handler } from '../types.ts'
+import type { Handler, Router } from '../types.ts'
 import { joinPath } from '../route/path.ts'
 import { defaultErrorResponse, type Procedure } from '../procedure/mod.ts'
 import { isRpcRedirect, isRpcResult } from './redirect.ts'

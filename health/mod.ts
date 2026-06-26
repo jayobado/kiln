@@ -1,4 +1,4 @@
-import type { Router } from '../router.ts'
+import type { Router } from '../types.ts'
 
 export type HealthOptions = {
 	/** Path prefix for the endpoints. Default ''. e.g. '/internal' → '/internal/health'. */

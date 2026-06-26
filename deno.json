@@ -30,7 +30,7 @@
   },
 
   "publish": {
-    "exclude": ["**/*_test.ts", "**/*.test.ts"]
+    "exclude": ["**/*_test.ts", "**/*.test.ts", "example"]
   },
 
   "tasks": {

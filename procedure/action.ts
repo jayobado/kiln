@@ -1,5 +1,4 @@
-import type { Router } from '../router.ts'
-import type { Handler, Middleware } from '../types.ts'
+import type { Handler, Middleware, Router } from '../types.ts'
 import type { HttpMethod } from '../route/types.ts'
 import { interpolatePath, joinPath } from '../route/path.ts'
 import type { InputSchemas, Procedure, RawInput } from './builder.ts'

@@ -36,6 +36,7 @@ export interface Router {
   patch(path: string, handler: Handler): this
   delete(path: string, handler: Handler): this
   all(path: string, handler: Handler): this
+  on(method: string, path: string, handler: Handler): this
 }
 
 // ─── HMR ─────────────────────────────────────────────────────────────────────
