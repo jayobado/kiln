@@ -1,3 +1,5 @@
+import type { HealthOptions } from './health/mod.ts'
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export type Handler = (
@@ -66,6 +68,9 @@ export interface ServeOptions {
   routes?: (router: Router) => void
 
   middleware?: Middleware[]
+
+  // Mount conventional /health, /ready, /version endpoints ahead of static serving.
+  health?: HealthOptions
 }
 
 // ─── Bundle options ───────────────────────────────────────────────────────────

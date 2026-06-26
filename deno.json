@@ -10,6 +10,7 @@
     "./procedure": "./procedure/mod.ts",
     "./route": "./route/mod.ts",
     "./rpc": "./rpc/mod.ts",
+    "./health": "./health/mod.ts",
     "./shutdown": "./shutdown/mod.ts",
 
     "./client": "./client/mod.ts",
@@ -33,7 +34,7 @@
   },
 
   "tasks": {
-    "check": "deno check mod.ts auth/mod.ts upstream/mod.ts procedure/mod.ts route/mod.ts rpc/mod.ts shutdown/mod.ts client/mod.ts client/dsl/mod.ts client/query/mod.ts client/primitives/mod.ts client/hooks/mod.ts rpc/client.ts",
+    "check": "deno check mod.ts auth/mod.ts upstream/mod.ts procedure/mod.ts route/mod.ts rpc/mod.ts health/mod.ts shutdown/mod.ts client/mod.ts client/dsl/mod.ts client/query/mod.ts client/primitives/mod.ts client/hooks/mod.ts rpc/client.ts",
     "test": "deno test --allow-net",
     "update": "deno cache --reload --lock=deno.lock mod.ts"
   },

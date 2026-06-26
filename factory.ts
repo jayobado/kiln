@@ -19,6 +19,7 @@ import {
 } from './hmr.ts'
 import { Log } from './logger.ts'
 import { runShutdown } from './shutdown/mod.ts'
+import { mountHealth } from './health/mod.ts'
 import type { ServeOptions } from './types.ts'
 
 // ─── run ──────────────────────────────────────────────────────────────────────
@@ -96,7 +97,11 @@ export async function serve(opts: ServeOptions): Promise<void> {
 		router.get('/__hmr', (req) => hmrHandler(req))
 	}
 
-	// ── Project routes ─────────────────────────────────────────────────────────
+	// ── Health endpoints — ahead of project routes and static serving ──────────
+
+	if (opts.health) mountHealth(router, opts.health)
+
+	// ── Project routes (BFF: auth guards, rpc/action mounts, …) ─────────────────
 
 	if (routes) routes(router)
 
