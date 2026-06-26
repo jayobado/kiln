@@ -1,6 +1,19 @@
 # kiln
 
-A lightweight Deno server and build tool for TypeScript SPAs. Serves and transpiles TypeScript on the fly in development with HMR, builds to static files for any deployment target in production. No framework dependency — works with React, Vue, Solid, lolo-ui, or plain TypeScript.
+A self-contained Deno full-stack server for the **lolo** stack: an on-the-fly TypeScript dev server with HMR, a static production build, a **bundled signals/real-DOM client** (`./client`), and a typed **BFF** (auth, procedures, RPC) — one package, no bundler, no `node_modules`.
+
+> **Status:** Personal/experimental (v0.3.0). Being reframed from a framework-agnostic build tool into an opinionated, batteries-included full-stack server. The server (serve/transpile/HMR/build) and the bundled client are in place; the BFF layer (auth, upstream HTTP, typed procedures, RPC) is landing incrementally. API will change without notice.
+
+## What this is
+
+kiln is the **server and client in one package** for building real-DOM SPAs backed by a typed backend-for-frontend:
+
+- **Dev server** — serves and transpiles TypeScript/TSX on the fly, with HMR. No build step in development.
+- **Production build** — bundles to static files for any deployment target.
+- **Bundled client** (`@jayobado/kiln/client`) — the lolo signals/real-DOM UI toolkit: reactive `signal`/`effect`/`computed`, a container/router/app system, `el.*`/`defineComponent` authoring, a declarative forms/tables DSL, async `useQuery`/`useMutation`, primitives, and hooks. (Vendored from the former standalone `@jayobado/lolo-ui`, now deprecated in favour of this.)
+- **BFF** *(in progress)* — typed procedures + RPC, auth/sessions, and an auth-aware upstream HTTP client, mounted ahead of static serving on kiln's own `@std/http` router. The client calls the BFF over **end-to-end typed RPC** — no Inertia, no separate API contract.
+
+It is **opinionated and self-contained**: kiln is the toolchain *and* the UI framework *and* the BFF. For a Vue/Inertia stack instead, see the parallel [`@jayobado/hono-ui`](https://jsr.io/@jayobado/hono-ui).
 
 ## Requirements
 
@@ -12,28 +25,44 @@ A lightweight Deno server and build tool for TypeScript SPAs. Serves and transpi
 |---|---|---|
 | Local dev | `lazy` + HMR | Transpiles on request, live reloads on change |
 | Deno Deploy | `eager` | Transpiles at startup, serves from memory |
-| Cloudflare Pages | `build()` | Pre-bundle to `./dist`, deploy static files |
-| Vercel | `build()` | Pre-bundle to `./dist`, deploy static files |
-| Netlify | `build()` | Pre-bundle to `./dist`, deploy static files |
+| Cloudflare Pages / Vercel / Netlify | `build()` | Pre-bundle to `./dist`, deploy static files |
 | VPS + Deno | `eager` | Transpiles at startup, serves from memory |
 
 ## Installation
+
 ```sh
 deno add jsr:@jayobado/kiln
 ```
 
 Or in `deno.json`:
-```json
+
+```jsonc
 {
   "imports": {
-    "@jayobado/kiln": "jsr:@jayobado/kiln@^0.2.1"
+    "@jayobado/kiln": "jsr:@jayobado/kiln@^0.3.0"
   }
 }
 ```
 
----
+The client is a subpath of the same package — no second dependency:
+
+```ts
+import { signal, defineContainer, createApp, h } from '@jayobado/kiln/client'
+import { defineForm, renderForm }                 from '@jayobado/kiln/client/dsl'
+import { useQuery, useMutation }                   from '@jayobado/kiln/client/query'
+```
+
+| Subpath | Contents |
+| --- | --- |
+| `@jayobado/kiln` | server: `serve`, `build`/`buildBundle`, `Router`, middleware, `Log` |
+| `@jayobado/kiln/client` | lolo core — signals, scope, container, router, app, `el.*`/`defineComponent`/`mount` |
+| `@jayobado/kiln/client/dsl` | declarative forms + tables (`defineForm`/`renderForm`, `defineTable`/`renderTable`) |
+| `@jayobado/kiln/client/query` | `useQuery` / `useMutation` (fetch-into-signals) |
+| `@jayobado/kiln/client/primitives` | click-outside, clipboard, debounce, focus-trap, media-query, pagination, portal, scroll-lock, selection, toast, tooltip, … |
+| `@jayobado/kiln/client/hooks` | dropdown, modal |
 
 ## Quick start
+
 ```typescript
 // server.ts
 import { serve } from '@jayobado/kiln'
@@ -49,75 +78,53 @@ await serve({
   hmr:       isDev,
 })
 ```
+
 ```json
 {
   "tasks": {
-    "dev":     "deno run --watch --allow-all server.ts",
-    "start":   "ENV=production deno run --allow-all server.ts",
-    "build":   "deno run --allow-all scripts/build.ts",
-    "preview": "deno run --allow-all scripts/preview.ts"
+    "dev":   "deno run --watch --allow-all server.ts",
+    "start": "ENV=production deno run --allow-all server.ts",
+    "build": "deno run --allow-all scripts/build.ts"
   }
 }
 ```
+
 ```bash
 deno task dev
 ```
 
----
+Your client pages import from `@jayobado/kiln/client`; kiln resolves that subpath, transpiles it, and serves it to the browser — no install, no `node_modules`.
 
 ## `serve()`
 
-Serves a TypeScript SPA from `fsRoot`. Intercepts `.ts` and `.tsx` requests and transpiles them server-side. Falls back to `index.html` for SPA client-side routes.
+Serves a TypeScript SPA from `fsRoot`. Intercepts `.ts`/`.tsx` requests and transpiles them server-side. Falls back to `index.html` for SPA client-side routes. Project routes registered via the `routes` hook mount **before** the static handler — the seam the BFF builds on.
+
 ```typescript
 await serve({
   host:    'localhost',
   port:    3000,
 
-  // Source directory — default './public'
-  fsRoot:  './public',
+  fsRoot:  './public',          // source directory — default './public'
+  importMap: './deno.json',     // path to deno.json or inline object
 
-  // Path to deno.json or inline object
-  // Required when using import aliases
-  importMap: './deno.json',
+  githubToken: Deno.env.get('GITHUB_TOKEN'),  // for private repo imports
 
-  // GitHub token for private repo imports
-  // Falls back to GITHUB_TOKEN env var
-  githubToken: Deno.env.get('GITHUB_TOKEN'),
+  strategy: 'lazy',             // 'lazy' (dev) | 'eager' (prod)
+  hmr: true,                    // default true when strategy is 'lazy'
 
-  // 'lazy'  — transpile on first request, cache result    (development)
-  // 'eager' — transpile everything at startup, serve from cache (production)
-  strategy: 'lazy',
-
-  // Enable HMR — default true when strategy is 'lazy'
-  hmr: true,
-
-  // Compiler options — only needed for JSX frameworks
-  compilerOptions: {
-    jsx:             'react-jsx',
-    jsxImportSource: 'react',
+  routes: (router) => {         // API/BFF routes, mounted ahead of static serving
+    router.get('/health', () => Response.json({ ok: true }))
   },
 
-  // Additional routes before the static handler
-  routes: (router) => {
-    router.get('/health', () =>
-      Response.json({ ok: true })
-    )
-  },
-
-  // Additional middleware
-  middleware: [],
+  middleware: [],               // additional middleware
 })
 ```
 
 ### Transpilation strategies
 
-**Lazy — development**
+**Lazy — development.** Transpiles on the first request for each file, caches in memory. Import map aliases are resolved and rewritten server-side — the browser receives plain JavaScript with fully resolved paths.
 
-Transpiles on the first request for each file, caches in memory. Subsequent requests return instantly. Import map aliases are resolved and rewritten server-side — the browser receives plain JavaScript with fully resolved paths.
-
-**Eager — production**
-
-Transpiles every `.ts` and `.tsx` file in `fsRoot` at startup before accepting requests. All files are in memory by the time the first request arrives.
+**Eager — production.** Transpiles every `.ts`/`.tsx` file in `fsRoot` at startup before accepting requests.
 
 ### Import resolution
 
@@ -129,32 +136,11 @@ kiln reads your `deno.json` import map and `deno.lock` to resolve bare specifier
 | `npm:zod@^3.0.0` | `/npm/zod@3.0.0` | `https://esm.sh/...` |
 | `./views/home.ts` | `./views/home.ts` | `fsRoot` |
 
-Versions are resolved from `deno.lock` — no runtime version lookups. The browser never sees bare specifiers or JSR/npm URLs directly.
-
-For example, with this import map:
-```json
-{
-  "imports": {
-    "@jayobado/lolo-ui": "jsr:@jayobado/lolo-ui@^0.1.5"
-  }
-}
-```
-
-A source file containing:
-```typescript
-import { signal } from '@jayobado/lolo-ui'
-```
-
-Is served to the browser as:
-```javascript
-import { signal } from '/jsr/@jayobado/lolo-ui/0.1.8/mod.ts'
-```
-
-kiln intercepts the `/jsr/` request, fetches the source from `jsr.io`, transpiles it, and caches the result. The entire dependency tree is resolved this way — no install step, no `node_modules`, no local copies.
+Versions are resolved from `deno.lock` — no runtime version lookups. The browser never sees bare specifiers or JSR/npm URLs directly. The entire dependency tree is resolved this way — no install step, no `node_modules`, no local copies.
 
 ### Caching
 
-Versioned dependency paths (`/jsr/...`, `/npm/...`) are served with `Cache-Control: public, max-age=31536000, immutable` — the content at a versioned URL never changes, so browsers and CDNs can cache them indefinitely. Local files are served with `no-cache` so HMR and development reloads work correctly.
+Versioned dependency paths (`/jsr/...`, `/npm/...`) are served `Cache-Control: public, max-age=31536000, immutable` — the content at a versioned URL never changes. Local files are served `no-cache` so HMR and development reloads work correctly.
 
 ### HMR
 
@@ -172,12 +158,11 @@ Disable explicitly with `hmr: false`.
 ### Private dependencies
 
 When your import map references private GitHub repos, kiln fetches them server-side using your `GITHUB_TOKEN`. The browser never sees the token.
+
 ```bash
 export GITHUB_TOKEN="ghp_yourtoken"
 ```
 
-## Environment configuration
+## License
 
-Browser code cannot read `.env` files directly — environment variables are server-side only. kiln provides a unified pattern that works across every deployment target without changing your application code.
-
-### How it works
+MIT

@@ -1,19 +1,26 @@
 {
   "name": "@jayobado/kiln",
-  "version": "0.2.1",
+  "version": "0.3.0",
 
   "exports": {
-    ".": "./mod.ts"
+    ".": "./mod.ts",
+
+    "./client": "./client/mod.ts",
+    "./client/dsl": "./client/dsl/mod.ts",
+    "./client/query": "./client/query/mod.ts",
+    "./client/primitives": "./client/primitives/mod.ts",
+    "./client/hooks": "./client/hooks/mod.ts"
   },
 
   "imports": {
     "@std/http": "jsr:@std/http@^1.0.0",
     "@deno/emit": "jsr:@deno/emit@^0.46.0",
-    "@std/path": "jsr:@std/path@^1"
+    "@std/path": "jsr:@std/path@^1",
+    "@standard-schema/spec": "npm:@standard-schema/spec@^1.0.0"
   },
 
   "tasks": {
-    "check":  "deno check mod.ts",
+    "check": "deno check mod.ts client/mod.ts client/dsl/mod.ts client/query/mod.ts client/primitives/mod.ts client/hooks/mod.ts",
     "update": "deno cache --reload --lock=deno.lock mod.ts"
   },
 

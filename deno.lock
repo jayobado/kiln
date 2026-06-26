@@ -19,8 +19,10 @@
     "jsr:@std/media-types@^1.1.0": "1.1.0",
     "jsr:@std/net@^1.0.6": "1.0.6",
     "jsr:@std/path@0.223": "0.223.0",
+    "jsr:@std/path@1": "1.1.4",
     "jsr:@std/path@^1.1.4": "1.1.4",
-    "jsr:@std/streams@^1.0.17": "1.0.17"
+    "jsr:@std/streams@^1.0.17": "1.0.17",
+    "npm:@standard-schema/spec@1": "1.1.0"
   },
   "jsr": {
     "@deno/cache-dir@0.13.2": {
@@ -116,10 +118,17 @@
       "integrity": "7859f3d9deed83cf4b41f19223d4a67661b3d3819e9fc117698f493bf5992140"
     }
   },
+  "npm": {
+    "@standard-schema/spec@1.1.0": {
+      "integrity": "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="
+    }
+  },
   "workspace": {
     "dependencies": [
       "jsr:@deno/emit@0.46",
-      "jsr:@std/http@1"
+      "jsr:@std/http@1",
+      "jsr:@std/path@1",
+      "npm:@standard-schema/spec@1"
     ]
   }
 }
