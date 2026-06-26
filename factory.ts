@@ -18,6 +18,7 @@ import {
 	watchFs,
 } from './hmr.ts'
 import { Log } from './logger.ts'
+import { runShutdown } from './shutdown/mod.ts'
 import type { ServeOptions } from './types.ts'
 
 // ─── run ──────────────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ function run(router: Router, host: string, port: number): void {
 	async function shutdown(): Promise<void> {
 		Log.info('Shutting down...')
 		await server.shutdown()
+		await runShutdown()
 		await Log.flush()
 		Deno.exit(0)
 	}

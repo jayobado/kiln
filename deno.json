@@ -5,6 +5,10 @@
   "exports": {
     ".": "./mod.ts",
 
+    "./procedure": "./procedure/mod.ts",
+    "./route": "./route/mod.ts",
+    "./shutdown": "./shutdown/mod.ts",
+
     "./client": "./client/mod.ts",
     "./client/dsl": "./client/dsl/mod.ts",
     "./client/query": "./client/query/mod.ts",
@@ -16,11 +20,17 @@
     "@std/http": "jsr:@std/http@^1.0.0",
     "@deno/emit": "jsr:@deno/emit@^0.46.0",
     "@std/path": "jsr:@std/path@^1",
-    "@standard-schema/spec": "npm:@standard-schema/spec@^1.0.0"
+    "@standard-schema/spec": "npm:@standard-schema/spec@^1.0.0",
+    "@std/assert": "jsr:@std/assert@^1"
+  },
+
+  "publish": {
+    "exclude": ["**/*_test.ts", "**/*.test.ts"]
   },
 
   "tasks": {
-    "check": "deno check mod.ts client/mod.ts client/dsl/mod.ts client/query/mod.ts client/primitives/mod.ts client/hooks/mod.ts",
+    "check": "deno check mod.ts procedure/mod.ts route/mod.ts shutdown/mod.ts client/mod.ts client/dsl/mod.ts client/query/mod.ts client/primitives/mod.ts client/hooks/mod.ts",
+    "test": "deno test --allow-net",
     "update": "deno cache --reload --lock=deno.lock mod.ts"
   },
 

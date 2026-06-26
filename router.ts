@@ -26,6 +26,11 @@ export class Router {
 	delete(path: string, handler: Handler): this { return this.add(['DELETE'], path, handler) }
 	all(path: string, handler: Handler): this { return this.add([], path, handler) }
 
+	/** Register a handler for an arbitrary HTTP method (used by the BFF action/route mounts). */
+	on(method: string, path: string, handler: Handler): this {
+		return this.add([method.toUpperCase()], path, handler)
+	}
+
 	async handle(
 		req: Request,
 		info: Deno.ServeHandlerInfo
