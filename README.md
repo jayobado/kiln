@@ -26,7 +26,7 @@ Or in `deno.json`:
 ```json
 {
   "imports": {
-    "@jayobado/kiln": "jsr:@jayobado/kiln@^0.1.8"
+    "@jayobado/kiln": "jsr:@jayobado/kiln@^0.2.1"
   }
 }
 ```
